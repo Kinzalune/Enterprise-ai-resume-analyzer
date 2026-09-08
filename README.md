@@ -1,11 +1,12 @@
 # Enterprise Cloud-Native AI Resume Analyzer
 
-An enterprise-grade, cloud-native REST API built with **Java 21**, **Spring Boot**, and **Google Cloud GenAI / Gemini**. This system ingests resumes, enforces strict PII data redaction for governance and privacy, evaluates candidate profiles against specific job descriptions, and returns structured gap analysis and actionable recommendations.
+An enterprise-grade, cloud-native REST API built with **Java 21**, **Spring Boot**, and **Google Gemini 3.6 Flash**. This system ingests PDF resumes, enforces strict PII data redaction for compliance, and returns structured skill analysis with actionable recommendations using generative AI.
 
 ---
 
 ## 🏛 Architecture & Data Flow
 
+```
 [ Candidate PDF ]
 │
 ▼
@@ -27,53 +28,58 @@ An enterprise-grade, cloud-native REST API built with **Java 21**, **Spring Boot
 │
 ▼
 [ JSON Output: Match %, Skills, STAR Bullet Recommendations ]
-
+```
 
 ---
 
-## 🚀 Key Engineering Highlights
+## 🚀 Key Engineering Features
 
-* **Privacy-First Data Governance:** Implemented a regex-based PII scrubbing service (`PiRedactionService`) that strips sensitive personally identifiable information (emails, phone numbers) prior to upstream LLM transmission.
-* **Strong Type Safety:** Leveraged Spring AI's structured entity mapping to deserialize Gemini output directly into immutable Java DTO records (`ResumeAnalysisResponse`), eliminating arbitrary text parsing.
-* **Stream-Safe PDF Extraction:** Processed incoming documents via Apache PDFBox using stream buffers to optimize garbage collection and thread memory consumption.
-* **Robust Global Exception Architecture:** Centralized error handling across all endpoints via `@RestControllerAdvice`, delivering consistent RFC-compliant JSON responses for bad payloads, missing parameters, and document unprocessability.
-* **Cloud-Native Automation:** Automated GCP bucket provisioning and API binding through Infrastructure-as-Code scripts (`infra/setup.sh`).
+* **Privacy-First Data Governance:** Built-in regex-based PII scrubbing service (`PiiRedactionService`) that strips emails, phone numbers, and personally identifiable information before sending to LLM. All masking patterns are configurable.
+
+* **Strong Type Safety:** Structured entity mapping deserializes Gemini JSON responses directly into immutable Java DTO records (`ResumeAnalysisResponse`). Eliminates untyped string parsing.
+
+* **Stream-Safe PDF Processing:** Apache PDFBox 3.x processes incoming documents via buffered streams, optimizing garbage collection and reducing memory footprint for large batches.
+
+* **Global Exception Handling:** Centralized error handling via `@RestControllerAdvice` returns RFC-compliant JSON error responses with specific HTTP status codes (400, 404, 500) and descriptive messages.
+
+* **Cloud-Native Infrastructure:** Infrastructure-as-Code setup via `infra/setup.sh` automates GCP project configuration, API enablement, and GCS bucket provisioning.
 
 ---
 
 ## 🛠 Tech Stack
 
-* **Language & Core:** Java 21, Spring Boot 3 / 4, Maven
-* **Cloud & Storage:** Google Cloud Storage (GCS), Google Cloud CLI
-* **AI & LLM Services:** Google Gemini 3.6 Flash via Spring AI Starter
-* **Document Processing:** Apache PDFBox 3.x
-* **Data Scaffolding & Logging:** Project Lombok, Jakarta Servlet API
+| Component | Technology |
+| --- | --- |
+| **Language & Framework** | Java 21, Spring Boot 3.4.x, Maven |
+| **Cloud & Storage** | Google Cloud Storage (GCS), Google Cloud CLI |
+| **AI & LLM** | Google Gemini 3.6 Flash via Spring AI Starter |
+| **Document Processing** | Apache PDFBox 3.x |
+| **Code Quality & Logging** | Project Lombok, Jakarta Servlet API, SLF4J |
 
 ---
 
 ## 📡 API Reference
 
 ### Analyze Resume
-Evaluates a candidate's resume against a targeted job description.
+Evaluates a candidate's resume against a targeted job description and returns skill match analysis.
 
-* **Endpoint:** `POST /api/v1/resumes/analyze`
-* **Content-Type:** `multipart/form-data`
+**Endpoint:** `POST /api/v1/resumes/analyze`  
+**Content-Type:** `multipart/form-data`
 
 #### Request Parameters
 | Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `file` | File (`.pdf`) | Yes | The candidate's resume document |
-| `jobDescription` | String | Yes | Plain text target job description requirements |
+| --- | --- | --- | --- |
+| `file` | File (`.pdf`) | Yes | Candidate's resume (PDF format) |
+| `jobDescription` | String | Yes | Target job description in plain text |
 
-#### Sample Request (`curl`)
+#### Example Request
 ```bash
-curl.exe -X POST "http://localhost:8085/api/v1/resumes/analyze" \
-  -F "file=@/path/to/resume.pdf" \
-  -F "jobDescription=Looking for a Backend Java Engineer experienced in Spring Boot, REST APIs, and Cloud Infrastructure."
+curl -X POST "http://localhost:8085/api/v1/resumes/analyze" \
+  -F "file=@resume.pdf" \
+  -F "jobDescription=Backend Engineer with Java, Spring Boot, REST APIs, Docker, and AWS experience required"
 ```
 
-#### Sample JSON Response (200 OK)
-
+#### Example Response (200 OK)
 ```json
 {
   "matchPercentage": 78,
@@ -85,36 +91,42 @@ curl.exe -X POST "http://localhost:8085/api/v1/resumes/analyze" \
   ],
   "missingSkills": [
     "Docker",
-    "Cloud Infrastructure (GCP/AWS)"
+    "AWS / Cloud Infrastructure"
   ],
   "recommendations": [
-    "Include specific STAR-format bullets describing cloud deployment experience.",
-    "Detail your performance tuning work with database queries under load."
+    "Add specific STAR-format bullets describing containerization and orchestration work.",
+    "Include quantifiable metrics for performance tuning and database optimization projects."
   ],
-  "summary": "Candidate exhibits strong core Java capabilities but requires greater visibility into automated container deployment and cloud infra."
+  "summary": "Strong backend Java fundamentals demonstrated. Cloud infrastructure skills should be expanded with hands-on Docker and AWS experience."
 }
 ```
 
-## Local Development Setup
+---
 
-### 1. Prerequisites
+## 🚀 Local Development Setup
 
-- Java 21 JDK installed.
-- Google Cloud CLI (`gcloud`) authenticated.
-- Google Gemini API Key from Google AI Studio.
+### Prerequisites
 
-### 2. Infrastructure Initialization
+- **Java 21 JDK** installed
+- **Google Cloud CLI** (`gcloud`) authenticated with appropriate GCP project
+- **Google Gemini API Key** from [Google AI Studio](https://aistudio.google.com)
 
-Run the infrastructure provisioning script to bind your GCP project and provision the regional GCS bucket:
+### Step 1: Infrastructure Setup
+
+Run the provisioning script to enable APIs and create the GCS bucket:
 
 ```bash
 chmod +x infra/setup.sh
 ./infra/setup.sh
 ```
 
-### 3. Configure Properties
+This script:
+- Enables Vertex AI and Cloud Storage APIs
+- Creates a regional GCS bucket for resume storage
 
-Ensure `src/main/resources/application.properties` contains your credentials:
+### Step 2: Configure Application Properties
+
+Edit `src/main/resources/application.properties`:
 
 ```properties
 server.port=8085
@@ -124,105 +136,46 @@ spring.cloud.gcp.project-id=YOUR_GCP_PROJECT_ID
 gcp.storage.bucket-name=YOUR_GCS_BUCKET_NAME
 ```
 
-### 4. Build and Run
+### Step 3: Build and Run
 
 ```bash
 ./mvnw clean compile
 ./mvnw spring-boot:run
 ```
 
-## Step 2: Commit the Documentation to Git
+The API will start on `http://localhost:8085`.
 
-In your terminal:
+---
 
-```powershell
-git add README.md
-git commit -m "docs: add enterprise architecture documentation and API specification"
+## 📋 Project Structure
+
+```
+src/main/java/com/yourname/resumeanalyzer/
+├── controller/        # REST API endpoints
+├── service/           # Business logic (PII redaction, Gemini calls)
+├── model/             # DTOs and response schemas
+├── config/            # Spring configuration for GCP and AI
+└── exception/         # Global exception handlers
 ```
 
-To build a professional, enterprise-grade AI Resume Analyzer, we will follow a high-standard engineering workflow. This ensures your GitHub repository demonstrates not just coding skills, but also your understanding of Cloud Architecture, Security, and DevOps.
+---
 
-🛠️ Phase 1: GitHub & Local Environment Setup
-Before writing code, we set up the "Command Center."
+## 🔒 Security & Compliance
 
-Create a New GitHub Repository:
+- **PII Masking:** All emails, phone numbers, and sensitive identifiers are redacted before LLM processing
+- **Data Retention:** Uploaded PDFs are stored in GCS with automatic lifecycle policies
+- **API Authentication:** Ready for Spring Security OAuth2 integration (Phase 2)
+- **Error Responses:** Never expose stack traces or sensitive configuration in API responses
 
-Name: enterprise-ai-resume-analyzer
+---
 
-Visibility: Public (to showcase your work).
+## 📝 License
 
-Initialize: Add a .gitignore (choose the Java template) and a README.md.
+This project is provided as-is for educational and commercial use.
 
-Local Clone & Branching:
+---
 
-Bash
-git clone https://github.com/your-username/enterprise-ai-resume-analyzer.git
-cd enterprise-ai-resume-analyzer
-git checkout -b feature/initial-setup
-Spring Initializr (The Blueprint):
-Go to start.spring.io and configure:
+## 👤 Author
 
-Project: Maven
-
-Language: Java (Version 21)
-
-Spring Boot: 3.4.x (Latest Stable)
-
-Dependencies:
-
-Spring Web: For REST APIs.
-
-Lombok: To keep code clean.
-
-GCP Support & GCP Storage: For Cloud Storage integration.
-
-Spring AI Vertex AI: To connect to Gemini.
-
-☁️ Phase 2: Google Cloud Infrastructure
-Since you are showcasing your Google Cloud certifications, we use the gcloud CLI to automate setup.
-
-Authentication:
-
-Bash
-gcloud auth application-default login
-Project & API Configuration:
-Create a script named infra/setup.sh in your project root to document this for recruiters:
-
-Bash
-# Enable necessary APIs
-gcloud services enable aiplatform.googleapis.com # Vertex AI
-gcloud services enable storage.googleapis.com   # Cloud Storage
-
-# Create a bucket for resumes
-gsutil mb -l us-central1 gs://your-unique-resume-bucket-name/
-🏗️ Phase 3: Project Structure & First Service
-Organize your code using a Layered Architecture, which is standard for enterprise Java.
-
-1. Folder Structure
-Plaintext
-src/main/java/com/yourname/resumeanalyzer/
-├── controller/     # API Endpoints (Routing only)
-├── service/        # Business Logic (The "Brain")
-├── model/          # Data objects (DTOs)
-├── config/         # Cloud & AI configurations
-└── repository/     # Data persistence (optional for RAG later)
-2. The Storage Service (Java 21 + GCS)
-Create ResumeStorageService.java. Using the Spring Resource abstraction is the professional way to handle cloud files.
-
-Java
-@Service
-@RequiredArgsConstructor
-public class ResumeStorageService {
-    private final Storage storage;
-
-    @Value("${gcp.bucket.name}")
-    private String bucketName;
-
-    public String uploadResume(MultipartFile file) throws IOException {
-        String fileName = UUID.randomUUID() + "-" + file.getOriginalFilename();
-        BlobId blobId = BlobId.of(bucketName, fileName);
-        BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(file.getContentType()).build();
-        storage.create(blobInfo, file.getBytes());
-        return fileName;
-    }
-}
+**Kinzalune** – Enterprise Java & Cloud Architecture  
+GitHub: [@Kinzalune](https://github.com/Kinzalune)
